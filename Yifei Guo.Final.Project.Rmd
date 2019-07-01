@@ -1,0 +1,1042 @@
+---
+title: "Midterm Project"
+author: "Yifei Guo"
+date: "2019/6/5"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r}
+# Section 1
+# Load the data
+# Please specify your file location here
+setwd('/Users/yifei/Documents/Yifei/Summer 19/Statistical Methods for Finance/Midterm Project/amex-nyse-nasdaq-stock-histories/fh_20190420/full_history')
+ 
+file_list <- list.files()
+df <- read.csv(file_list[1])
+df <- data.frame(df$date, df$adjclose)
+df <- df[1:2521,]
+# use the file names (stock names) for column names
+substring <- substr(file_list[1], start = 1, stop = nchar(file_list[1])-4)
+colnames(df)[2] <- substring
+# merge prices for all stocks into one data set
+for (i in 2:length(file_list)){
+       temp <- read.csv(file_list[i])
+       temp <- data.frame(temp$date, temp$adjclose)
+       if(nrow(temp)>0){
+       if(temp[1,1] == "2019-04-18"){
+         substring <- substr(file_list[i], start = 1, stop = nchar(file_list[i])-4)
+         colnames(temp)[2] <- substring
+         if(nrow(temp)>=2521){
+           temp <- temp[1:2521,]
+           df <- merge(x=df, y=temp, by.x = "df.date",by.y = "temp.date", all.x = TRUE, all.y = TRUE)
+         }else{
+           df <- merge(x=df, y=temp, by.x = "df.date",by.y = "temp.date", all.x = TRUE, all.y = TRUE)
+         }
+       }
+       }
+}
+
+```
+
+
+```{r}
+# Section 2
+# extract data for the last ten years
+# the extracted data set starts from 2009-04-15 to 2019-04-18
+# I need prices from 2009-04-15 to get log returns for 2009-04-16  
+rm(temp)
+which(df[,1]=="2009-04-15")
+which(df[,1]=="2019-04-18")
+# For some reasons originated from the stock price excels, there are two rows with the same date as 2019-04-18.
+# Further examination reveals that these two rows are identical 
+# so it is ok just extract data from 2009-04-15 to 2019-04-18
+# Check if these two rows are identical
+check <- c()
+for(i in 2: length(df)){
+  if (df[4636,i] == df[4637,i]){
+    check[i-1] <- TRUE
+  } else{
+    check[i-1] <- FALSE
+  }
+}
+length(check[check == FALSE])
+# Since the number of FALSE is zero, meaning that the two rows with that same data 2019-04-28 are identical
+
+# After the merge function, the fraction of my dataframe from 2009-04-15 to 2019-04-18 is already in the reversed order,
+# starting from earlier date to later date. Date 2009-04-15 appears earlier than 2019-04-18. 
+# the row number of 2009-04-15 is 2116
+# the row number of 2019-04-18 is 4636 and 4637. Since the date is in increasing order, row 4636 should be used instead of 4637
+# Therefore I can extract data for the last ten-years by directly specifying the row numbers.
+df.last10 <- df[2116:4636,]
+rm(check)
+rm(substring)
+# My subset dataframe starts from 2009-04-15 instead of 2009-04-16 because I need stock prices at 2009-04-15 to calculate the log return at 2009-04-16
+```
+
+```{r}
+# Section 3
+# Extract stocks with less than 5% missing variables
+df.last.new <- data.frame(df.last10[,1])
+miss <- c()
+start = 2
+for(i in 2:length(df.last10)){
+  miss[i] <- sum(is.na(df.last10[2:2521,i]))/2520
+  if(miss[i] <= 0.05){
+    df.last.new[start] = df.last10[i]
+    start = start +1
+  }
+}
+```
+
+```{r}
+# Section 4
+# Compute logreturns
+df.logReturn <- data.frame(df.last.new[2:nrow(df.last.new),1])
+names(df.logReturn)[1] <- names(df.last.new)[1]
+for(i in 2:length(df.last.new)){
+  for(j in 1: nrow(df.logReturn)){
+    df.logReturn[j,i] = log(df.last.new[(j+1),i]/df.last.new[j,i])
+  }
+  names(df.logReturn)[i] <- names(df.last.new)[i]
+}
+```
+
+```{r}
+# Section 5
+# extract stocks with less than 5% missing variables after calculating the log returns
+miss <- c(0)
+df.log.c <- data.frame(df.logReturn[,1])
+start = 2
+for(i in 2:length(df.logReturn)){
+  miss[i] <- sum(is.na(df.logReturn[,i]))/2520
+  if(miss[i] <= 0.05){
+    df.log.c[start] = df.logReturn[i]
+    start = start +1
+  }
+}
+```
+
+```{r}
+# Section 6
+# get ready to check the volume
+file_list.vol <- c()
+for(i in 2:length(df.log.c)){
+  file_list.vol[i-1] <- paste0(names(df.log.c)[i], ".csv")
+}
+```
+
+```{r}
+# Section 7
+# form a dataframe with volumes of all stocks after calculating the log return
+# Please specify your file location here
+setwd('/Users/yifei/Documents/Yifei/Summer 19/Statistical Methods for Finance/Midterm Project/amex-nyse-nasdaq-stock-histories/fh_20190420/full_history')
+df.vol <- read.csv(file_list.vol[1])
+df.vol <- data.frame(df.vol$date, df.vol$volume)
+df.vol <- df.vol[1:2521,]
+substring <- substr(file_list.vol[1], start = 1, stop = nchar(file_list.vol[1])-4)
+colnames(df.vol)[2] <- substring
+for (i in 2:length(file_list.vol)){
+       temp <- read.csv(file_list.vol[i])
+       temp <- data.frame(temp$date, temp$volume)
+         substring <- substr(file_list.vol[i], start = 1, stop = nchar(file_list.vol[i])-4)
+         colnames(temp)[2] <- substring
+         if(nrow(temp)>=2521){
+           temp <- temp[1:2521,]
+           df.vol <- merge(x=df.vol, y=temp, by.x = "df.vol.date",by.y = "temp.date", all.x = TRUE, all.y = TRUE)
+         }else{
+           df.vol <- merge(x=df.vol, y=temp, by.x = "df.vol.date",by.y = "temp.date", all.x = TRUE, all.y = TRUE)
+         }
+}
+which(df.vol[,1]=="2019-04-18")
+which(df.vol[,1]=="2009-04-16")
+df.vol.1 <- df.vol[123:2642,]
+```
+
+```{r}
+# Section 8
+# delete stocks with insignificane trading volume
+vol.ext <- c()
+miss <- c()
+start <- 1
+for(i in 2:length(df.vol.1)){
+  miss[i-1] <- length(df.vol.1[,i][df.vol.1[,i] < 1000])/2520
+  if(miss[i-1] > 0.05){
+    vol.ext[start] = names(df.vol.1)[i]
+    start = start +1
+  }
+}
+df.log.cv <- df.log.c[, !(names(df.log.c)%in% vol.ext )] 
+```
+
+```{r}
+#Section 9
+nStock <- length(df.log.cv)-1
+# Data cleaning, missing values and outliers.
+#install.packages("forecast")
+library("forecast")
+#install.packages("tsoutliers")
+library("tsoutliers")
+data.1 <- data.frame(df.log.cv[-1])
+# Estimate missing values
+for(i in 1: ncol(data.1)){
+  data.1[i] <- na.interp(data.1[i])
+}
+data.2 <- data.matrix(data.1)
+
+data.clean <- matrix(nrow = nrow(data.2), ncol = ncol(data.2))
+colnames(data.clean)=colnames(data.2)
+# identify and replace outliers
+for(i in 1: nStock){
+  data.clean[,i] <- tsclean(data.2[,i])
+}
+check <- data.clean == data.2
+# what percentage of the whole dataset is identified as outliers and replace.
+# the result is about 1%, so it is safe to use the tsclean() function
+sum(check!=TRUE)/(2520*nStock)
+```
+
+```{r}
+# Section 10
+# load the sp500 index
+setwd('/Users/yifei/Documents/Yifei/Summer 19/Statistical Methods for Finance/Midterm Project')
+
+sp500 <- read.csv("SP500new.csv", header = TRUE, as.is = TRUE)
+sp500 <- data.frame(sp500$Date, sp500$Close)
+which(sp500[,1]=="2019-04-18")
+which(sp500[,1]=="2009-04-15")
+# extract relevent data for the last ten years
+sp500 <- sp500[35400:37920,]
+rownames(sp500) <-sp500[,1]
+```
+
+```{r}
+# Section 11
+# calculate log returns
+sp500log.ret <- matrix(ncol = 2, nrow = 2520)
+for(i in 1:2520){
+  sp500log.ret[i,1] <- rownames(sp500)[i+1]
+  sp500log.ret[i,2] <- log(sp500[i+1,2]/sp500[i,2])
+}
+# add dates as row names to the sp500 
+sp500log.ret.alt <- matrix(as.numeric(sp500log.ret[,2]), ncol = 1)
+rownames(sp500log.ret.alt) <- sp500log.ret[,1]
+sp500log.ret <- sp500log.ret.alt
+rm(sp500log.ret.alt)
+# add dates as row names to the cleaned data 
+df.log.cv.test <- df.log.cv[,-1]
+rownames(df.log.cv.test) <- df.log.cv[,1]
+rownames(data.clean) <- rownames(df.log.cv.test)
+rm(df.log.cv.test)
+```
+
+
+```{r}
+# Section 12
+# create a matrix to record all relevant statistics for each rolling window
+stats <- matrix(nrow = ncol(data.clean), ncol = 4)
+rownames(stats) <-  colnames(data.clean)
+colnames(stats) <- c("annualized.mean.return", "annualized.sd", "annualized.sharpe.ratio", "beta")
+```
+
+```{r}
+# Section 13
+# recalculate price based on cleaned log return data
+Stock.names <- c()
+for(i in 1:ncol(data.clean)){
+  Stock.names[i] <- colnames(data.clean)[i]
+}
+# Get the initial price for all 3258 stocks in the data set
+price.clean <- matrix(nrow = 2521, ncol = 3258)
+#ini.price <- df.last.new[1, (names(df.last.new)%in% Stock.names )] 
+for(i in 1: 3258){
+  price.clean[1,i]<- 100
+}
+# Regenerate price data from cleaned log return
+for(i in 1:3258){
+  for(j in 2:2521){
+    price.clean[j,i] <- price.clean[j-1,i]/exp(data.clean[j-1,i])
+  }
+}
+price.clean <- price.clean[-1,]
+dim(price.clean)
+colnames(price.clean) <- colnames(data.clean)
+rownames(price.clean) <- rownames(data.clean)
+```
+
+```{r}
+# Section 14
+# This function is used when deciding if the a stock from the correlation list has already been selected or not
+check.include <- function(v,s){
+  check <- FALSE
+  for(i in 1:length(v)){
+    if(check == FALSE){
+      check <- identical(v[i], s)
+    }
+  }
+  return(check)
+}
+
+# This function chooses stocks for the first rolling window
+stock.select.r.w.1 <- function(matr,stat,matr.price){
+ name <- c()
+  # First choose the top 100 stocks with the highest Sharpe ratio
+  for(i in 1: 100){
+    name[i] <- rownames(stat)[i]
+  }
+  matr<- matr[, (colnames(matr)%in% name)]
+  # check correlations
+  cov.check <- matrix(ncol=3, nrow = 4950)
+  k <- 1
+  for (i in 1: (ncol(matr)-1)){
+    for(j in (i+1): ncol(matr)){
+     
+      cov.check[k,1] <- colnames(matr)[i]
+      cov.check[k,2] <- colnames(matr)[j]
+      cov.check[k,3] <- abs(cor(x = matr[,i], y = matr[,j]))
+      k = k +1
+    }
+  }
+  cov.check<- cov.check[order(cov.check[,3]),]
+  # extract top 50 stocks with smallest correlations from the correlation list. 
+  stock.chosen <- c(cov.check[1,1], cov.check[1,2])
+  alt <- 1
+  start.chose <- 2
+  while(length(stock.chosen) <51){
+    if(alt==1){
+      if(check.include(stock.chosen,cov.check[start.chose,1])==FALSE){
+        stock.chosen <- append(stock.chosen, cov.check[start.chose,1])
+        alt <- 2
+      }else{
+        alt <- 2
+      }
+    }else if(alt==2){
+      if(check.include(stock.chosen,cov.check[start.chose,2])==FALSE){
+        stock.chosen <- append(stock.chosen, cov.check[start.chose,2])
+        alt <- 1
+        start.chose = start.chose +1
+      }else{
+        alt <- 1
+        start.chose = start.chose +1
+      }
+    }
+  }
+  stock.chosen <- stock.chosen[1:50]
+  matr<- matr[, (colnames(matr)%in% stock.chosen)]
+  matr.price<- matr.price[, (colnames(matr.price)%in% stock.chosen)] 
+  stat.trend <- c()
+  time.trend <- seq(1:nrow(matr.price))
+  for( j in 1:dim(matr.price)[2]){
+      trend.model <- lm(matr.price[,j] ~ time.trend, na.action=na.exclude)
+      stat.trend[j] <- coef(trend.model)[2]
+      names(stat.trend)[j] <- colnames(matr.price)[j]
+  }
+  stat.trend <- sort(stat.trend,decreasing = TRUE)
+  # extract top 20 stocks with highest beta (best upward trends)
+  stat.trend <- stat.trend[1:20]
+  name.select <- names(stat.trend )[1:20]
+  matr<- matr[, (colnames(matr)%in% name.select)] 
+  return(list(matr, name.select))
+}
+```
+
+```{r}
+# Section 15
+sig2w <- 0.1
+# This function is inspired by codes posted on the coursework,
+# calculating beta at one specific time t.
+kalmanf.update <- function(y, g, xt.t, Pt.t, F, sig2W, sig2v){
+  Pta.t <- F * F * Pt.t + sig2w
+  Pta.ta <- Pta.t - (Pta.t * g) ^ 2 / (g * g * Pta.t + sig2v)
+  xta.t <- F * xt.t
+  xta.ta <- xta.t + Pta.t * g / (g * g * Pta.t + sig2v) * (y - g * xta.t)
+  return(xta.ta)
+}
+
+# This function is inspired by codes posted on the coursework,
+# calculating a series of dynamic CAPM bata over the entire rolling window period for one stock.
+kalmanf.estx <- function(y, G, fit0, sig2w){
+  est.x <- est.P <- rep(0, length(y) + 1)
+  sig2v <- sum(fit0$resid ^ 2) / length(fit0$resid)
+  est.x[1] <- xt.t <- as.numeric(fit0$coeff)
+  est.P[1] <- Pt.t <- sum(fit0$resid ^ 2) / (length(fit0$resid) - 1) / sum(G ^ 2)
+  F <- 1
+  for (i in 1:length(y)) {
+    kalmanf <- kalmanf.update(y[i], G[i], xt.t, Pt.t, F, sig2w, sig2v)
+    est.x[i + 1] <- xt.t <- kalmanf
+  }
+  return(est.x)
+}
+
+# This function is inspired by codes posted on the coursework
+# This function first provides initial conditions for the dynamic CAPM exercise and then 
+# report a vector of dynamic CAPM beta for one asset.
+estimate.beta.one.asset <- function(asset, sp, sig2w){
+  fit0 <- lm(asset ~ sp - 1, na.action=na.exclude)
+  est <- kalmanf.estx(asset, sp, fit0, sig2w)
+  est <- est[-1]
+  return(est)
+}
+
+# This function calculates the residuals.
+estimate.v.one.asset <- function(asset, sp, beta.one.asset){
+  resid.one.asset <- c()
+  for(i in 1:length(asset)){
+    # error probably
+    resid.one.asset[i] <- asset[i]- sp[i]*beta.one.asset[i]
+  }
+
+  return(resid.one.asset)
+}
+
+```
+
+
+```{r}
+# Section 16
+get.F <-function (return.chose, sp){
+  sig2w <- 0.1
+  var_not <- var(sp)
+  dybeta.all <- list()
+  n <- dim(return.chose)[1] # number of row (size of one rolling window = m)
+  p <- dim(return.chose)[2] # number of column (number of asset chosen)
+  # Split the rolling window into CAPM and Dynamic CAPM sections
+  V.est <- matrix(nrow = (n), ncol = p)
+  for(i in 1:p){
+    dybeta.all[[i]] <- estimate.beta.one.asset(return.chose[,i],sp, sig2w)
+    V.est[,i] <- estimate.v.one.asset(return.chose[,i],sp,dybeta.all[[i]])
+  }
+  beta <- c()
+  for(i in 1:p){
+    beta[i] <- dybeta.all[[i]][length(dybeta.all[[i]])]
+  }
+  F.est <- var_not * (beta %*% t(beta)) + diag(diag(cov(V.est)))
+  return(F.est)
+}
+
+
+```
+
+
+```{r}
+# Section 17
+# This is the portfolio optimization section that calculate the optimal weight
+# This section follows the R code posted on Courseworka and uses the close-form solution for 
+# global minimum variance porfolio from the book
+portfolio.opt <- function(matr, f.matr){
+  f.est <- f.matr
+  n <- dim(matr)[1] # number of row (size of one rolling window = m)
+  p <- dim(matr)[2] # number of column (number of asset chosen)
+  s.est <- t(matr - mean(matr, 2)) %*% (matr - mean(matr, 2)) / n
+  # Computation of the best shrinkage parameter sigma
+  # Gamma
+  gamma <- sum(sum((f.est - s.est) ^ 2))
+  # Sigma_bar
+  sig_bar <- 0
+  for (i in 1:(p - 1)){
+    for (j in (i + 1):p){
+      sig_bar <- sig_bar + s.est[i,j] / sqrt(s.est[i,i] * s.est[j,j])
+    } 
+  }
+  sig_bar <- sig_bar * 2 / (p * (p - 1))
+  # pi_ij
+  pi_ij <- function(i,j){
+    sum(((matr[,i] - mean(matr[,i])) * (matr[,j] - mean(matr[,j])) - s.est[i,j]) ^
+    2) / n
+  }
+  # pi.hat
+  pi.hat <- 0
+  for (i in 1:p){
+    for (j in 1:p){
+      pi.hat <- pi.hat + pi_ij(i,j)
+    } 
+  }
+  # theta
+  theta <- function(k,i,j){
+    sum(((matr[,k] - mean(matr[,k])) ^ 2 - s.est[k,k]) * ((matr[,i] - mean(matr[,i]
+    )) * (matr[,j] - mean(matr[,j])) - s.est[i,j])) / n
+  }
+  # ro
+  ro <- 0
+  for (i in 1:p){
+    ro <- ro + pi_ij(i,i)
+    for (j in 1:p){
+      if (j!=i){
+        ro <- ro + sig_bar * (sqrt(s.est[j,j] / s.est[i,i]) * theta(i,i,j) + sqrt(s.est[i,i]
+        / s.est[j,j]) * theta(j,i,j)) / 2
+      }
+    } 
+  }
+  # kappa
+  kappa <- (pi.hat - ro) / gamma
+  # delta
+  delta <- min(1, max(kappa / n, 0))
+  # Final estimation of covariance matrix is
+  cov.est <- delta * f.est + (1 - delta) * s.est
+  inversecov <- solve(cov.est)
+  ind <- rep(1, p)
+  C <- as.numeric(ind %*% inversecov %*% ind)
+  # Find the optimal weight for stocks
+  w <- (inversecov %*% ind)/C
+  return(list(w,delta))
+}
+
+# This is the main function that does the rolling window exercise. 
+# when calling the function rollingWindow.opt(m,h), we specify the rolling window size and h.
+# With this rolling window function design, it is much easier to try different rolling window size and different h.
+rollingWindow.opt <- function(m,h){
+# a vector that record returns from each rolling window
+return.period <- c()
+# a list to record weights for each stock, one object for each rolling window
+w <-list()
+# a vector that record the shrinkage parameter
+delta <- c()
+# matrix to record the chosen stocks
+stocks.20 <- list()
+# record return for each stock for each period
+return.each.stock <- list()
+# start of the rolling window exercise
+for (i in 1: ((2520-m)/h)){
+  begin <-1 + (i-1)*h
+  # extract data
+  data.rw <- data.clean[begin:(begin+(m-1)),]
+  sp <- sp500log.ret[begin:(begin+(m-1)),1]
+  price.rw <- price.clean[begin:(begin+(m-1)),]
+  colnames(price.rw) <- colnames(price.clean)
+  colnames(data.rw ) <- colnames(price.clean)
+
+  # calculate statistics for each rolling window
+  # all statistics here are annulized
+  stats[,1] <- 252*colMeans(data.rw)
+  stats[,2] <- sqrt(252)*apply(data.rw, 2, sd)
+  stats[,3] <-  stats[,1] / stats[,2]
+  for( j in 1:nrow(stats)){
+    CAPM.model <- lm(data.rw[,j] ~ sp,na.action=na.exclude)
+    stats[j,4] <- coef(CAPM.model)[2]
+  }
+  # order stocks according to their sharpe ratio
+  stats <- stats[order(stats[,3], decreasing = TRUE),]
+  # stock selection
+  if(i == 1){
+    # The first rolling window
+    chosen.stock <- stock.select.r.w.1(data.rw, stats, price.rw)
+    stocks.20[[i]] <- chosen.stock[[2]]
+  } else {
+    # Rolling window 2 and beyond
+    temp.stock <- stocks.20[[i-1]]
+    temp.stock <- temp.stock[!(temp.stock%in%rem.name)]
+    inc <- FALSE
+    count <- 1
+    while (inc == FALSE) {
+      if(check.include(temp.stock,rownames(stats)[count])==FALSE){
+        temp.stock <- append(temp.stock, rownames(stats)[count])
+        count <- count+1
+        inc <- TRUE
+      }else{
+        count <- count+1
+      }
+    } 
+    stocks.20[[i]] <- temp.stock
+  }
+  # return data for selected stocks
+  return.chose <- data.rw[, (colnames(data.rw)%in% stocks.20[[i]])]
+  # Get estimated matrix F 
+  F.est <- get.F(return.chose, sp)
+  # portfolio optimization
+  opt <- portfolio.opt(return.chose,F.est)
+  w[[i]] <- opt[[1]]
+  
+  delta[i] <- opt[[2]]
+  # extract stock returns from h period ahead
+  data.future <- data.clean[(begin+252):(begin+252+h-1),]
+  data.future <- data.future[, (colnames(data.future)%in% stocks.20[[i]])]
+  # calculate stock returns h period ahead using optimized portfolio
+  ret <-c()
+    stock.returns <- colSums (data.future)
+    for(k in 1:length(w[[i]])){
+      ret[k] <- w[[i]][k]* stock.returns[(names(stock.returns)%in%rownames(w[[i]])[k])]
+      names(ret)[k] <- rownames(w[[i]])[k]
+    }
+  return.each.stock[[i]] <- ret
+  # recalculated Sharpe ratios and extract the name of stock with the lowest Sharpe Ratio
+  mini.stats <- matrix(nrow = 20, ncol = 3)
+  rownames(mini.stats) <- colnames(data.future) 
+  mini.stats[,1] <- 252*colMeans(data.future)
+  mini.stats[,2] <- sqrt(252)*apply(data.future, 2, sd)
+  mini.stats[,3] <-  mini.stats[,1] / mini.stats[,2]
+  mini.stats <- mini.stats[order(mini.stats[,3]),]
+  rem.name <- rownames(mini.stats)[1]
+  return.period[i] <- sum(ret)
+}
+  return(list(return.period, w,delta, stocks.20,return.each.stock))
+}
+
+```
+
+```{r}
+# Section 18
+# Cumulative return function: converting period return for each rolling window to cumulative returns
+cumulative.return.function <- function(v){
+  c.r <- c()
+  for(i in 1:length(v)){
+    if(i == 1){
+      c.r[1]<- v[1]
+    }else{
+      c.r[i] <- c.r[i-1] + v[i]
+    }
+  }
+  return(c.r)
+}
+```
+
+```{r}
+# Section 19
+# Calculate the cumulative retuens for optimized portfolio
+# h = 5
+rw.opt.5 <- rollingWindow.opt(504, 5)
+cumulative.return.opt.5 <- cumulative.return.function(rw.opt.5[[1]])
+#plot(cumulative.return.opt.5)
+```
+
+```{r}
+# Section 20
+# Calculate the cumulative retuens for optimized portfolio
+# h = 20
+rw.opt.20 <- rollingWindow.opt(504, 20)
+cumulative.return.opt.20 <- cumulative.return.function(rw.opt.20[[1]])
+# plot(cumulative.return.opt.20)
+```
+
+```{r}
+# Section 21
+# Calculate period return function for equally weighted portfolio 1/20 after each rolling window
+rollingWindow.eql.1 <- function(m,h,list.sel){
+  return.period <- c()
+  for (i in 1: ((2520-m)/h)){
+    begin <-1 + (i-1)*h
+    data.future <- data.clean[(begin+m):(begin+m+h-1),]
+    # select stocks 
+    data.future <- data.future[, (colnames(data.future)%in% list.sel[[i]])]
+    stock.returns <- colSums (data.future)
+    return.period[i] <- sum((1/20)*stock.returns)
+  }
+  return(return.period)
+}
+```
+```{r}
+# Section 22
+# Calculate the cumulative retuens for equally weighted portfolio 1/20
+# h = 5
+matr.stock.name <- rw.opt.5[[4]]
+period.ret.eql.1.5 <- rollingWindow.eql.1(504,5,matr.stock.name)
+cumulative.return.eql.1.5 <- cumulative.return.function(period.ret.eql.1.5)
+plot(cumulative.return.eql.1.5)
+```
+```{r}
+# Section 23
+# Calculate the cumulative retuens for equally weighted portfolio 1/20
+# h = 20
+matr.stock.name <- rw.opt.20[[4]]
+period.ret.eql.1.20 <- rollingWindow.eql.1(504,20,matr.stock.name)
+cumulative.return.eql.1.20 <- cumulative.return.function(period.ret.eql.1.20)
+plot(cumulative.return.eql.1.20)
+```
+
+```{r}
+# Section 24
+# period return function for sp500
+rollingWindow.sp <- function(m,h){
+  return.period <- c()
+  for (i in 1: ((2520-m)/h)){
+    begin <-1 + (i-1)*h
+    sp <- sp500log.ret[(begin+m):(begin+m+h-1),1]
+    return.period[i] <- sum(sp)
+  }
+  return(return.period)
+}
+
+```
+
+```{r}
+# Section 25
+# Calculate the cumulative retuens for sp500 and h = 5
+period.ret.sp.5 <- rollingWindow.sp(504,5)
+cumulative.return.sp.5 <- cumulative.return.function(period.ret.sp.5)
+plot(cumulative.return.sp.5 )
+```
+```{r}
+# Section 26
+# Calculate the cumulative retuens for sp500 and h = 20
+period.ret.sp.20 <- rollingWindow.sp(504,20)
+cumulative.return.sp.20 <- cumulative.return.function(period.ret.sp.20)
+plot(cumulative.return.sp.20)
+```
+
+```{r}
+# Section 27
+x.lab <- function(m,h,v){
+  time <- c()
+  for (i in 1: ((2520-m)/h)){
+  begin <-1 + (i-1)*h
+  time[i] <- v[begin]
+  }
+  return(time)
+}
+x.lab.time <- c(rownames(data.clean))
+x.lab.5 <- x.lab(504,5,x.lab.time)
+x.lab.20 <- x.lab(504,20,x.lab.time)
+```
+
+
+```{r}
+# Section 28
+# Plot the cumulative returns
+# h =5 
+p.r.5 <- cbind(rw.opt.5[[1]],period.ret.eql.1.5, period.ret.sp.5)
+c.r.5 <- cbind(cumulative.return.opt.5, cumulative.return.eql.1.5, cumulative.return.sp.5)
+rownames(c.r.5) <- x.lab.5
+matplot(c.r.5, type = c("l"),col = 1:3, xlab = "Rolling Window Index", ylab = "Cumulative Return", main = "Gross Return h = 5")
+legend("topleft", legend = c("Optimized Portfolio", "Equally Weighted Portfolio 1/20", "SP500"), col=1:3, pch=1)
+```
+```{r}
+# Section 29
+# Plot the cumulative returns
+# h =20
+p.r.20 <- cbind(rw.opt.20[[1]],period.ret.eql.1.20, period.ret.sp.20)
+c.r.20 <- cbind(cumulative.return.opt.20, cumulative.return.eql.1.20, cumulative.return.sp.20)
+rownames(c.r.20) <- x.lab.20
+matplot(c.r.20, type = c("l"),col = 1:3, xlab ="Rolling Window Index", ylab = "Cumulative Return", main = "Gross Return h = 20")
+legend("topleft", legend = c("Optimized Portfolio", "Equally Weighted Portfolio 1/20",  "SP500"), col=1:3, pch=1)
+```
+
+```{r}
+# Section 30
+# get a vector of turnovers, each element correspond to one rolling window.
+# This turnover function is for the optimized portfolio
+turnover.vector <- function(list.w, list.ret){
+  noadj <- matrix(nrow = nStock, ncol =length(list.w))
+  rownames(noadj) <- colnames(data.clean)
+  for(i in 1:length(list.w)){
+    for(j in 1: length(list.w[[i]])){
+      noadj[names(list.w[[i]])[j],i]<-list.w[[i]][j]
+    }
+  }
+  noadj[is.na(noadj)] <- 0
+  stockret.adj <- list()
+  weight.adj <- list()
+  temp <- c()
+  for(i in 1: length(list.ret)){
+    for(j in 1: 20){
+      temp[j] <- exp(list.ret[[i]][j])
+    }
+    stockret.adj[[i]] <- temp
+    names(stockret.adj[[i]]) <- names(list.ret[[i]])
+  }
+
+
+  temp <- c()
+  for(j in 1:length(list.w)){
+    for(k in 1:20){
+     temp[k]   <- list.w[[j]][[k]]*       stockret.adj[[j]][(names(stockret.adj[[j]])%in%rownames(list.w[[j]])[k])]
+    }
+    weight.adj[[j]] <- temp    
+    names(weight.adj[[j]]) <- rownames(list.w[[j]])
+    
+  }
+  sumweight <- c()
+
+  for(i in 1:length(weight.adj)){
+    sumweight[i] <- sum(weight.adj[[i]])
+  }
+  for(i in 1: length(weight.adj)){
+    for(j in 1:length(weight.adj[[i]]) ){
+      weight.adj[[i]][j] <- weight.adj[[i]][j]/sumweight[i]
+    }
+  }
+  w.adj <- matrix(nrow = nStock, ncol =length(list.w))
+
+  rownames(w.adj) <- colnames(data.clean)
+  # Combine adjusted weights for 3258 stocks over the 100 rolling windows
+  for(i in 1:length(list.w)){
+    for(j in 1: length(weight.adj[[i]])){
+      w.adj[names(weight.adj[[i]])[j],i]<-weight.adj[[i]][j]
+    }
+  }
+  w.adj[is.na(w.adj)] <- 0
+  turn.over <- c(1)
+  for(i in 2:ncol(noadj)){
+    temp <- noadj[,i]-w.adj[,i-1]
+    temp <- abs(temp)
+    turn.over[i] <- sum(temp)
+  }
+  return(turn.over)
+}
+# Calculate vectors of turnover for h=5 and h=20 for optimized portfolios
+to.5 <- turnover.vector(rw.opt.5[[2]], rw.opt.5[[5]])
+to.20 <- turnover.vector(rw.opt.20[[2]], rw.opt.20[[5]])
+```
+
+```{r}
+# Section 31
+# recalculate period returns (net returns) using gross returns and turnovers
+net.return <- function(gross, w){
+  period.ret <- 1+gross
+  para <- 1-(0.0005)*w
+  ret.adj <- (period.ret*para)-1
+  return(ret.adj)
+}
+```
+
+```{r}
+# Section 32
+# get a vector of turnovers, each element correspond to one rolling window.
+# This turnover function is for the equally weighted portfolio 1/20
+turnover.vector.eql <- function(list.ret){
+# Calculate the turnover for the equally weighted portfolio 1/20
+eql.ori <- matrix(nrow = nStock, ncol =length(list.ret))
+rownames(eql.ori) <- colnames(data.clean)
+# Combine weights for 3258 stocks over rolling windows
+for(i in 1:length(list.ret)){
+  for(j in 1: length(list.ret[[i]])){
+    eql.ori[names(list.ret[[i]]),i]<- (1/20)
+  }
+}
+# recalculate weights before rebalancing
+eql.ori[is.na(eql.ori)] <- 0
+  weight.adj <- list()
+  temp <- c()
+  for(i in 1: length(list.ret)){
+    for(j in 1: 20){
+      temp[j] <- exp(list.ret[[i]][j])*(1/20)
+    }
+    weight.adj[[i]] <- temp
+    names(weight.adj[[i]]) <- names(list.ret[[i]])
+  }
+
+  sumweight <- c()
+
+  for(i in 1:length(weight.adj)){
+    sumweight[i] <- sum(weight.adj[[i]])
+  }
+  for(i in 1: length(weight.adj)){
+    for(j in 1:length(weight.adj[[i]]) ){
+      weight.adj[[i]][j] <- weight.adj[[i]][j]/sumweight[i]
+    }
+  }
+  w.adj <- matrix(nrow = nStock, ncol =length(list.ret))
+
+  rownames(w.adj) <- colnames(data.clean)
+  # Combine adjusted weights for 3258 stocks over the 100 rolling windows
+  for(i in 1:length(list.ret)){
+    for(j in 1: length(weight.adj[[i]])){
+      w.adj[names(weight.adj[[i]])[j],i]<-weight.adj[[i]][j]
+    }
+  }
+  w.adj[is.na(w.adj)] <- 0
+  turn.over <- c(1)
+  for(i in 2:ncol(eql.ori)){
+    temp <- eql.ori[,i]-w.adj[,i-1]
+    temp <- abs(temp)
+    turn.over[i] <- sum(temp)
+  }
+  return(turn.over)
+}
+# Calculate vectors of turnover for h=5 and h=20 for equally weighted portfolios
+to.5.eql <- turnover.vector.eql(rw.opt.5[[5]])
+to.20.eql <- turnover.vector.eql(rw.opt.20[[5]])
+```
+
+```{r}
+# Section 33
+# Calculate net returns for equally weighted portfolios
+ret.adj.5.eql <- net.return(period.ret.eql.1.5,to.5.eql)
+ret.adj.20.eql <- net.return(period.ret.eql.1.20,to.20.eql)
+# Calculate net returns for optimized portfolios
+ret.adj.5 <- net.return(rw.opt.5[[1]],to.5)
+ret.adj.20 <- net.return(rw.opt.20[[1]],to.20)
+```
+
+```{r}
+# Section 34
+cumulative.return.opt.5.adj <- cumulative.return.function(ret.adj.5)
+cumulative.return.eql.5.adj <- cumulative.return.function(ret.adj.5.eql)
+# Plot the cumulative net returns
+# h =20
+# Net period return
+p.r.5.net <- cbind(ret.adj.5, ret.adj.5.eql, period.ret.sp.5)
+# Net cumulative return
+c.r.5.net <- cbind(cumulative.return.opt.5.adj, cumulative.return.eql.5.adj, cumulative.return.sp.5)
+rownames(c.r.5.net) <- x.lab.5
+matplot(c.r.5.net, type = c("l"),col = 1:3, xlab ="Rolling Window Index", ylab = "Cumulative Net Return", main = "Net Return h = 5")
+legend("topleft", legend = c("Optimized Portfolio", "Equally Weighted Portfolio 1/20",  "SP500"), col=1:3, pch=1)
+```
+
+```{r}
+# Section 35
+cumulative.return.opt.20.adj <- cumulative.return.function(ret.adj.20)
+cumulative.return.eql.20.adj <- cumulative.return.function(ret.adj.20.eql)
+# Plot the cumulative net returns
+# h =20
+# Net period return
+p.r.20.net <- cbind(ret.adj.20, ret.adj.20.eql, period.ret.sp.20)
+# Net cumulative return
+c.r.20.net <- cbind(cumulative.return.opt.20.adj, cumulative.return.eql.20.adj, cumulative.return.sp.20)
+rownames(c.r.20.net) <- x.lab.20
+matplot(c.r.20.net, type = c("l"),col = 1:3, xlab ="Rolling Window Index", ylab = "Cumulative Return", main = "Net Return h = 20")
+legend("topleft", legend = c("Optimized Portfolio", "Equally Weighted Portfolio 1/20",  "SP500"), col=1:3, pch=1)
+```
+
+```{r}
+# Section 36
+# Calculate final statistics for four different portfolios:
+# Final statistics include: Mean Return, Volatility, Sharpe Ratio, Sortino Ratio, Max Drawdown, Turnover
+# All final statistics are not annualized 
+# Four portfolios are: Optimized Portfolio, Equally Weighted Portfolio 1/30, Equally Weighted Portfolio 1/3258, SP500
+# you may have to install these packages
+#install.packages("PerformanceAnalytics")
+#install.packages("zoo")
+#install.packages("xts")
+library("PerformanceAnalytics")
+library("zoo")
+library("xts")
+fl.stat.1 <- function(matr.data,stat, h, v.turn.opt, v.turn.eql){
+  stat[,1] <- colMeans(matr.data)
+  stat[,2] <- apply(matr.data, 2, sd)
+  #stat[,3] <- stat[,1]/stat[,2]
+  for(i in 1:3){
+  stat[i, 4] <- SortinoRatio(matr.data[,i])
+  }
+  for(i in 1:3){
+  stat[i, 5]  <- maxDrawdown(matr.data[,i])
+  }
+  stat[1,6]<-mean(v.turn.opt)
+  stat[2,6]<- mean(v.turn.eql)
+  stat[3,6]<-0
+  colnames(stat) <- c("Mean Return", "volatility", "Sharpe Ratio", "Sortino Ratio", "MaxDrawdown", "Turnover")
+  rownames(stat) <- c("Optimized Portfolio", "Equally Weighted Portfolio 1/20", "SP500")
+  return(stat)
+}
+```
+
+```{r}
+# Section 37
+# Implement the fl.stat.1 function specified above
+# Calculating maxDrawdown and Sortino Ratio by directing using the built-in functions results in warnings because my time series data include only one column. However, the warning does not affect computations. 
+Final.Statistics.5.gross  <- matrix(nrow = 3, ncol = 6)
+Final.Statistics.20.gross  <- matrix(nrow = 3, ncol = 6)
+Final.Statistics.5.net  <- matrix(nrow = 3, ncol = 6)
+Final.Statistics.20.net <- matrix(nrow = 3, ncol = 6)
+Final.Statistics.5.gross<- fl.stat.1(p.r.5,Final.Statistics.5.gross, 5, to.5, to.5.eql)
+Final.Statistics.20.gross<- fl.stat.1(p.r.20,Final.Statistics.20.gross, 20, to.20, to.20.eql)
+Final.Statistics.5.net<- fl.stat.1(p.r.5.net,Final.Statistics.5.net, 5, to.5, to.5.eql)
+Final.Statistics.20.net<- fl.stat.1(p.r.20.net,Final.Statistics.20.net, 20, to.20, to.20.eql)
+```
+
+```{r}
+# Section 38
+# Annualize final statistics
+annualize <- function(matr,h){
+  for(i in 1:3){
+    matr[i,1] <- matr[i,1]*(252/h)
+  }
+  for(i in 1:3){
+    matr[i,2] <- matr[i,2]*sqrt((252/h))
+  }
+  matr[,3] <-matr[,1]/matr[,2] 
+  for(i in 1:3){
+    matr[i,4] <- matr[i,4]*sqrt((252/h))
+  }
+  for(i in 1:3){
+    matr[i,5] <- matr[i,5]*(252/h)
+  }
+  for(i in 1:3){
+    matr[i,6] <- matr[i,6]*(252/h)
+  }
+  return(matr)
+}
+Final.Statistics.5.gross.an <- annualize(Final.Statistics.5.gross, 5)
+Final.Statistics.20.gross.an <- annualize(Final.Statistics.20.gross, 20)
+Final.Statistics.5.net.an <- annualize(Final.Statistics.5.net, 5)
+Final.Statistics.20.net.an <- annualize(Final.Statistics.20.net, 20)
+```
+
+```{r}
+# Section 39
+Final.Statistics.5.gross.an
+Final.Statistics.5.net.an
+Final.Statistics.20.gross.an
+Final.Statistics.20.net.an
+```
+
+```{r}
+# Section 40
+c.r.20.compare <- cbind(cumulative.return.opt.20, cumulative.return.opt.20.adj)
+matplot(c.r.20.compare, type = c("l"),col = 1:2, xlab ="Rolling Window Index", ylab = "Cumulative Return", main = "Compare h = 20")
+legend("topleft", legend = c("Optimized Portfolio.Gross", "Optimized Portfolio.Net"), col=1:2, pch=1)
+```
+```{r}
+# Section 41
+c.r.5.compare <- cbind(cumulative.return.opt.5, cumulative.return.opt.5.adj)
+matplot(c.r.5.compare, type = c("l"),col = 1:2, xlab ="Rolling Window Index", ylab = "Cumulative Return", main = "Compare h = 5")
+legend("topleft", legend = c("Optimized Portfolio.Gross", "Optimized Portfolio.Net"), col=1:2, pch=1)
+
+
+```
+```{r}
+# Section 42
+one.asset <- data.clean[, (colnames(data.clean)%in% "CHW" )]
+one.asset <- one.asset[1:504]
+sp.one <- sp500log.ret[1:504,1]
+beta.CHW <- estimate.beta.one.asset(one.asset, sp.one, sig2w)
+plot(beta.CHW, type = c("l"), xlab = "Date")
+```
+```{r}
+# Section 43
+# Gross Cumulative Returns m=252, h=20
+# Optimized Portfolio
+rw.opt.20.252 <- rollingWindow.opt(252, 20)
+cumulative.return.opt.20.252 <- cumulative.return.function(rw.opt.20.252[[1]])
+# Equally Weighted Portfolio
+matr.stock.name <- rw.opt.20.252[[4]]
+period.ret.eql.1.20.252 <- rollingWindow.eql.1(252,20,matr.stock.name)
+cumulative.return.eql.1.20.252 <- cumulative.return.function(period.ret.eql.1.20.252)
+# SP500
+period.ret.sp.20.252 <- rollingWindow.sp(252,20)
+cumulative.return.sp.20.252 <- cumulative.return.function(period.ret.sp.20.252)
+p.r.20.gross <- cbind(rw.opt.20.252[[1]], period.ret.eql.1.20.252,period.ret.sp.20.252)
+c.r.20.252 <- cbind(cumulative.return.opt.20.252, cumulative.return.eql.1.20.252, cumulative.return.sp.20.252)
+matplot(c.r.20.252, type = c("l"),col = 1:3, xlab ="Rolling Window Index", ylab = "Cumulative Return", main = "Gross Return h = 20, m=252")
+legend("topleft", legend = c("Optimized Portfolio", "Equally Weighted Portfolio 1/20",  "SP500"), col=1:3, pch=1)
+
+
+```
+```{r}
+# Section 44
+to.20.252 <- turnover.vector(rw.opt.20.252[[2]], rw.opt.20.252[[5]])
+to.20.eql.252 <- turnover.vector.eql(rw.opt.20.252[[5]])
+ret.adj.20.eql.252 <- net.return(period.ret.eql.1.20.252, to.20.eql.252)
+ret.adj.20.252 <- net.return(rw.opt.20.252[[1]],to.20.252)
+cumulative.return.opt.20.adj.252 <- cumulative.return.function(ret.adj.20.252)
+cumulative.return.eql.20.adj.252 <- cumulative.return.function(ret.adj.20.eql.252)
+p.r.20.net.252 <- cbind(ret.adj.20.252, ret.adj.20.eql.252, period.ret.sp.20.252)
+# Net cumulative return
+c.r.20.net.252 <- cbind(cumulative.return.opt.20.adj.252, cumulative.return.eql.20.adj.252, cumulative.return.sp.20.252)
+matplot(c.r.20.net.252, type = c("l"),col = 1:3, xlab ="Rolling Window Index", ylab = "Cumulative Return", main = "Net Return h = 20, m=252")
+legend("topleft", legend = c("Optimized Portfolio", "Equally Weighted Portfolio 1/20",  "SP500"), col=1:3, pch=1)
+
+```
+```{r}
+# Section 45
+Final.Statistics.20.gross.252  <- matrix(nrow = 3, ncol = 6)
+Final.Statistics.20.net.252 <- matrix(nrow = 3, ncol = 6)
+Final.Statistics.20.gross.252<-fl.stat.1(p.r.20.gross,Final.Statistics.20.gross.252, 20, to.20.252, to.20.eql.252)
+Final.Statistics.20.net.252<- fl.stat.1(p.r.20.net.252,Final.Statistics.20.net.252, 20, to.20.252, to.20.eql.252)
+Final.Statistics.20.gross.an.252 <- annualize(Final.Statistics.20.gross.252, 20)
+Final.Statistics.20.net.an.252 <- annualize(Final.Statistics.20.net.252, 20)
+```
+```{r}
+# Section 46
+Final.Statistics.20.gross.an.252
+Final.Statistics.20.net.an.252
+```
